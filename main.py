@@ -72,6 +72,7 @@ async def go_next(user_id: int, message: Message):
 
 		if cur_city["type"] == "город":
 			user["state"] = "CITY"
+			user["curHP"] = 100
 			db.update_user(user)
 			await message.answer("Мы пришли в город!", reply_markup=base_keyboard)
 		else:
@@ -82,7 +83,7 @@ async def go_next(user_id: int, message: Message):
 			mob = db.get_random_mob()
 
 			await message.answer(
-				f"Ваш соперник"
+				f"Ваш соперник\n"
 				f"Nickname: {mob['name']}\n"
 				f"HP: {mob['HP']}\n"
 				f"XP: {mob['XP']}\n"
@@ -96,9 +97,11 @@ async def go_next(user_id: int, message: Message):
 
 			cur_attack = 0
 			cur_armour = 0
+			cur_hp = user["curHP"]
 
 			mob_attack = 0
 			mob_armour = 0
+			mob_hp = user["XP"]
 
 			if mob["attack_type"] == "SIMPLE":
 				cur_attack = user["attack"]
@@ -107,20 +110,32 @@ async def go_next(user_id: int, message: Message):
 				mob_attack = mob["attack"]
 				mob_armour = mob["armour"]
 			else:
-				print()
+				cur_attack = user["magic_attack"]
+				cur_armour = user["magic_armour"]
 
-			await message.answer(
-				f"Бой прошел. Ваш"
-				f"Nickname: {mob['name']}\n"
-				f"HP: {mob['HP']}\n"
-				f"XP: {mob['XP']}\n"
-				f"req_level: {mob['req_level']}\n"
-				f"attack_type: {mob['attack_type']}\n"
-				f"attack: {mob['attack']}\n"
-				f"magic_attack: {mob['magic_attack']}\n"
-				f"armour: {mob['armour']}\n"
-				f"magic_armour: {mob['magic_armour']}\n"
-			)
+				mob_attack = mob["magic_attack"]
+				mob_armour = mob["magic_armour"]
+
+			cur_attack = cur_attack - mob_armour
+			mob_attack = mob_attack - cur_armour
+
+			while cur_hp > 0 and mob_hp>0:
+				mob_hp -= cur_attack
+
+				if mob_hp < 0:
+					break
+
+				cur_hp -= mob_attack
+
+			if cur_hp < 0:
+				await message.answer(
+					f"Вы проиграли."
+				)
+			else:
+				await message.answer(
+					f"Вы выиграли."
+				)
+
 			print("MOB ", mob)
 
 	else:
