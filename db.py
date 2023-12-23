@@ -70,6 +70,29 @@ def get_cities():
 	return res_cities
 
 
+def get_items():
+	res_items = items.find()
+
+	return res_items
+
+
+def get_item(id):
+	item = items.find({"_id":id})
+
+	return item
+
+
+async def get_item_by_name(name):
+	item = items.find_one({"name": name})
+
+	return item
+
+
+def get_my_items(user_id):
+	user = users.find({"user_id": user_id})
+
+	return user["items"]
+
 async def get_city_by_name(name):
 	city = cities.find_one({"name": name})
 

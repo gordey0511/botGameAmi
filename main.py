@@ -107,7 +107,7 @@ async def go_next(user_id: int, message: Message):
 				mob_attack = mob["attack"]
 				mob_armour = mob["armour"]
 			else:
-
+				print()
 
 			await message.answer(
 				f"Бой прошел. Ваш"
@@ -147,11 +147,26 @@ async def message_trigger(message: Message):
 
 			if sqrt(pow((cur_city["x"]-city["x"]), 2) + pow((cur_city["y"]-city["y"]), 2)) <= 10:
 				next_cities.append(city)
-				button = InlineKeyboardButton(city["name"], callback_data=city['name'])
+				button = InlineKeyboardButton(city["name"], callback_data=f"WAY {city['name']}")
 				inline_kb.add(button)
 
 		await message.answer(
 			text="Путешествовать",
+			reply_markup=inline_kb
+		)
+	elif message.text == "Купить":
+		items = db.get_items()
+
+		inline_kb = InlineKeyboardMarkup(row_width=2)
+
+		for item in items:
+			print(item)
+
+			button = InlineKeyboardButton(f"{item['name']} – цена: {item['cost']}", callback_data=f"BUY {item['name']}")
+			inline_kb.add(button)
+
+		await message.answer(
+			text="Что купим?",
 			reply_markup=inline_kb
 		)
 	elif message.text == "Мой персонаж":
@@ -168,7 +183,7 @@ async def message_trigger(message: Message):
 					  f"XP: {person['XP']}\n" \
 					  f"Armour: {person['armour']}\n" \
 					  f"Magic Armour: {person['magic_armour']}\n" \
-					  f"LocationID: {person['location_id']}\n"
+					  f"Location: {db.get_cur_city(person['location_id'])['name']}\n"
 		await message.answer(
 			text = text_person,
 			reply_markup=base_keyboard,
@@ -181,19 +196,44 @@ async def button_trigger(call: CallbackQuery):
 	await bot.delete_message(chat_id = call.message.chat.id, message_id=call.message.message_id)
 	user = db.find_user(call.from_user.id)
 
-	city = await db.get_city_by_name(call.data)
-	cur_city = db.get_cur_city(user["location_id"])
+	if call.data[0:3] == "WAY":
+		data = call.data[4:]
+		city = await db.get_city_by_name(data)
+		cur_city = db.get_cur_city(user["location_id"])
 
-	distance = sqrt(pow((city["x"]-cur_city["x"]), 2) + pow((city["y"]-cur_city["y"]), 2))
-	sent_message = await call.message.answer("идем...")
-	print("City ", call.data, city, cur_city, distance)
-	await asyncio.sleep(distance)
+		distance = sqrt(pow((city["x"]-cur_city["x"]), 2) + pow((city["y"]-cur_city["y"]), 2))
+		sent_message = await call.message.answer("идем...")
+		print("City ", data, city, cur_city, distance)
+		await asyncio.sleep(distance)
 
-	await bot.delete_message(chat_id=sent_message.chat.id, message_id=sent_message.message_id)
+		await bot.delete_message(chat_id=sent_message.chat.id, message_id=sent_message.message_id)
 
-	user["location_id"] = ObjectId(city["_id"])
-	user["state"] = "NEW CITY"
-	db.update_user(user)
+		user["location_id"] = ObjectId(city["_id"])
+		user["state"] = "NEW CITY"
+		db.update_user(user)
+	elif call.data[0:3] == "BUY":
+		data = call.data[4:]
+		item = await db.get_item_by_name(data)
+		my_items = db.get_my_items(user["user_id"])
+		print("DATA ", data, my_items)
+
+		check = True
+
+		if item["item_type"] != "зелье":
+			for my_item_id, my_item_count in my_items:
+				item_data = db.get_item(my_item_id)
+				if my_item_count > 0:
+					if item_data_id != item["_id"]:
+						check = False
+
+		if not check:
+			await call.message.answer("Вы уже купили другое оружие!")
+		else:
+			await call.message.answer("Купили!")
+
+			user["items"][item["_id"]] += 1
+
+			db.update_user(user)
 
 	await go_next(call.from_user.id, call.message)
 
