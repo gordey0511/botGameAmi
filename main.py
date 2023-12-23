@@ -169,6 +169,35 @@ async def message_trigger(message: Message):
 			text="Что купим?",
 			reply_markup=inline_kb
 		)
+	elif message.text == "Продать":
+		items = db.get_my_items(user["user_id"])
+
+		inline_kb = InlineKeyboardMarkup(row_width=2)
+
+		for item_id, item_count in items.items():
+			my_item = db.get_item(item_id)
+			print(my_item, item_id, item_count)
+
+			button = InlineKeyboardButton(f"{my_item['name']} – количество: {item_count}, цена продажи: {my_item['cost_to_sale']}", callback_data=f"SEL {my_item['name']}")
+			inline_kb.add(button)
+
+		await message.answer(
+			text="Что продадим?",
+			reply_markup=inline_kb
+		)
+	elif message.text == "Мой инвентарь":
+		items = db.get_my_items(user["user_id"])
+		text_inventar = "Инвентарь:\n"
+
+		for item_id, item_count in items.items():
+			my_item = db.get_item(item_id)
+			print(my_item, item_id, item_count)
+			if item_count > 0:
+				text_inventar = text_inventar + f"{my_item['name']} – количество: {item_count}"
+
+		await message.answer(
+			text=text_inventar
+		)
 	elif message.text == "Мой персонаж":
 		person = db.get_profile(message.from_user.id)
 		print("TEST", person)
@@ -220,38 +249,49 @@ async def button_trigger(call: CallbackQuery):
 		check = True
 
 		if item["item_type"] != "зелье":
-			for my_item_id, my_item_count in my_items:
+			for my_item_id, my_item_count in my_items.items():
 				item_data = db.get_item(my_item_id)
 				if my_item_count > 0:
-					if item_data_id != item["_id"]:
+					if my_item_id != str(item["_id"]):
 						check = False
 
+		print("RESULT", check)
 		if not check:
 			await call.message.answer("Вы уже купили другое оружие!")
 		else:
-			await call.message.answer("Купили!")
+			if item["cost"] > user["money"]:
+				await call.message.answer("У вас нету денег!")
+			else:
+				await call.message.answer("Купили!")
+				user["money"] -= item["cost"]
 
-			user["items"][item["_id"]] += 1
+				if str(item["_id"]) not in user["items"].keys():
+					user["items"][str(item["_id"])] = 1
+				else:
+					user["items"][str(item["_id"])] += 1
+
+				print(user)
+
+				db.update_user(user)
+	elif call.data[0:3] == "SEL":
+		data = call.data[4:]
+		item = await db.get_item_by_name(data)
+		my_items = db.get_my_items(user["user_id"])
+		print("DATA ", data, my_items)
+
+		if my_items[str(item["_id"])] == 0:
+			await call.message.answer("Он и так уже продан!")
+		else:
+			user["items"][str(item["_id"])] -= 1
+			user["money"] += item["cost_to_sale"]
+
+			print(user)
 
 			db.update_user(user)
 
+			await call.message.answer("Продали!")
+
 	await go_next(call.from_user.id, call.message)
-
-
-@dp.pre_checkout_query_handler(lambda query: True)
-async def pre_checkout_query(pre_checkout_q: PreCheckoutQuery):
-	await bot.answer_pre_checkout_query(pre_checkout_q.id, ok=True)
-
-
-@dp.message_handler(content_types=ContentType.SUCCESSFUL_PAYMENT)
-async def successful_payment(message: Message):
-	user = db.find_user(message.from_user.id, cfg.bot_id)
-	question = db.find_question(user["state"])
-	user["waiting_match"] = True
-	user["state"] = question.get("next_question")
-	db.update_user(user, cfg.bot_id)
-	await bot.send_message(user["tid"], cfg.TEXT_PAID)
-	await trigger(user["state"], user)
 
 
 if __name__ == '__main__':

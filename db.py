@@ -77,7 +77,7 @@ def get_items():
 
 
 def get_item(id):
-	item = items.find({"_id":id})
+	item = items.find_one({"_id": ObjectId(id)})
 
 	return item
 
@@ -89,7 +89,7 @@ async def get_item_by_name(name):
 
 
 def get_my_items(user_id):
-	user = users.find({"user_id": user_id})
+	user = users.find_one({"user_id": user_id})
 
 	return user["items"]
 
